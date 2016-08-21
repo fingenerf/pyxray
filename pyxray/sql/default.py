@@ -248,6 +248,57 @@ def populate_element_name_table(engine, purge=False):
         session.commit()
 
     return True
+	
+def populate_element_atomic_weight_table(engine, purge=False):
+	if not setup_table(engine, ElementAtomicWeightProperty, purge):
+		return False
+
+	with session_scope(engine) as session:
+		r = requests.get('http://physics.nist.gov/cgi-bin/Compositions/stand_alone.pl?ele=Li&all=all&ascii=ascii2&isotype=some')
+		rdata = r.text
+		data = rdata.split('\n')
+		z = 0
+		for x in range(0,len(data)):
+			if data[x].startswith('Atomic Number'):
+				newZ = False
+				temp = ''
+				for y in range(16,len(data[x])):
+					temp = temp + data[x][y]
+				if temp != z:
+					z = temp
+					isotopes = []
+					newZ = true
+					value = calculated_mass
+					calculated_mass = 0
+					atomicweight = ElementAtomicWeightProperty(value = value)
+					session.add(atomicweight)
+					
+				relative_mass = ''
+				for y in range(23,len(data[x+3])):
+					if data[x+3][y] == '(':
+						break			
+						relative_mass = relative_mass + data[x+3][y]
+						
+				composition = ''
+				for y in range(23,len(data[x+4])):
+					if data[x+4][y] == '(':
+						break				
+					composition = composition + data[x+4][y]
+				
+				if composition == '':
+					c = 0.0
+					isotopes.append(relative_mass)
+				else:
+					c = flaot(composition)	
+				if relative_mass == '':
+					r_m = 0.0
+				else:
+					r_m = float(relative_mass)
+				
+				calculated_mass = calculated_mass + r_m*c
+				
+	return True
+	
 
 #--- Atomic shell
 
@@ -313,6 +364,7 @@ def main():
                  ('notation type', populate_notation_type_table),
                  ('element', populate_element_table),
 #                 ('element name', populate_element_name_table),
+				  ('element atomic weight', populate_element_atomic_weight_table),
                  ('atomic subshell', populate_atomic_shell_table),
                  ('atomic subshell notation', populate_atomic_shell_notation_table),
                  ]
