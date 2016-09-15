@@ -5,6 +5,7 @@ import os
 import argparse
 import logging
 logger = logging.getLogger(__name__)
+import re
 
 # Third party modules.
 from sqlalchemy import create_engine
@@ -257,45 +258,36 @@ def populate_element_atomic_weight_table(engine, purge=False):
 		r = requests.get('http://physics.nist.gov/cgi-bin/Compositions/stand_alone.pl?ele=Li&all=all&ascii=ascii2&isotype=some')
 		rdata = r.text
 		data = rdata.split('\n')
-		z = 0
-		for x in range(0,len(data)):
-			if data[x].startswith('Atomic Number'):
-				newZ = False
-				temp = ''
-				for y in range(16,len(data[x])):
-					temp = temp + data[x][y]
-				if temp != z:
-					z = temp
-					isotopes = []
-					newZ = true
-					value = calculated_mass
-					calculated_mass = 0
+		current_z = "1"
+		value = 0
+			
+		for l in data:
+			z = re.search(r"Atomic\sNumber\s=\s([0-9]*)", l)
+			relative_mass = re.search(r"Relative\sAtomic\sMass\s=\s([0-9]*.{0,1}[0-9]*)", l)
+			composition = re.search(r"Isotopic\sComposition\s=\s([0-9]*.{0,1}[0-9]*)", l)
+			
+			if z!=None:
+				if current_z != z.group(1):
+					current_z = z.group(1)
+					if value = 0:
+						value = None
 					atomicweight = ElementAtomicWeightProperty(value = value)
 					session.add(atomicweight)
-					
-				relative_mass = ''
-				for y in range(23,len(data[x+3])):
-					if data[x+3][y] == '(':
-						break			
-						relative_mass = relative_mass + data[x+3][y]
-						
-				composition = ''
-				for y in range(23,len(data[x+4])):
-					if data[x+4][y] == '(':
-						break				
-					composition = composition + data[x+4][y]
-				
-				if composition == '':
-					c = 0.0
-					isotopes.append(relative_mass)
-				else:
-					c = flaot(composition)	
-				if relative_mass == '':
+					value = 0
+
+			elif relative_mass!=None:
+				if relative_mass.group(1) == '':
 					r_m = 0.0
 				else:
-					r_m = float(relative_mass)
+					r_m = float(relative_mass.group(1))
+							
+			elif composition!=None:
+				if composition.group(1) == '':
+					c = 0.0
+				else:
+					c = float(composition.group(1))	
+				value = value + r_m*c
 				
-				calculated_mass = calculated_mass + r_m*c
 				
 	return True
 	
